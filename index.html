@@ -1,40 +1,353 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="ja">
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="うどん計算尺">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>うどん計算尺</title>
+<!-- Flutter版のファイルをそのまま流用。無ければこの3行は削除してOK -->
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="icons/Icon-192.png">
+<style>
+  *{box-sizing:border-box;margin:0}
+  :root{
+    --blue:#007aff; --green:#34c759; --orange:#ff9500;
+    --blue-ink:#0060df; --green-ink:#1f8a3b; --orange-ink:#b85c00; --red:#d70015;
+    --label:#1c1c1e; --muted:#8e8e93; --sub:#6c6c70;
+    --wheel-h:180px;
+  }
+  html{-webkit-text-size-adjust:100%}
+  body{
+    background:#fff; color:var(--label);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    touch-action:manipulation; overscroll-behavior:none; -webkit-tap-highlight-color:transparent;
+  }
+  main{
+    max-width:480px; margin:0 auto;
+    padding:max(12px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right))
+            max(20px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
+  }
+  h1{font-size:17px; font-weight:600; text-align:center; padding:10px 0 18px}
 
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
+  .card{
+    background:#fff; border-radius:14px; padding:14px 6px; margin-bottom:14px;
+    box-shadow:0 2px 10px rgba(0,0,0,.07), 0 0 0 .5px rgba(0,0,0,.04);
+  }
 
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+  /* 仕込み量 */
+  .result{text-align:center; padding:18px 6px 16px}
+  .result .label{font-size:14px; font-weight:600; color:var(--sub)}
+  .result .num{display:flex; justify-content:center; align-items:baseline; gap:6px; margin-top:6px}
+  #batch{font-size:52px; font-weight:800; line-height:1.1; letter-spacing:-.01em; font-variant-numeric:tabular-nums}
+  .unit{font-size:18px; font-weight:600; color:var(--sub)}
 
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
-  <base href="/udon-ruler/">
+  /* 色 */
+  .blue{--accent:var(--blue); --ink:var(--blue-ink)}
+  .green{--accent:var(--green); --ink:var(--green-ink)}
+  .orange{--accent:var(--orange); --ink:var(--orange-ink)}
 
-  <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  /* 見出し・現在値 */
+  .title{font-size:13px; font-weight:700; white-space:nowrap; color:var(--ink)}
+  .val{font-size:22px; font-weight:700; line-height:1.3; margin-top:2px; color:var(--ink); font-variant-numeric:tabular-nums}
+  .note{height:16px; line-height:16px; font-size:10px; color:var(--sub)}
+  .warn .val,.warn .note{color:var(--red)}
 
-  <link rel="apple-touch-icon" href="icons/app_icon.png">
+  /* 縦ダイヤル4本 */
+  .dials{display:grid; grid-template-columns:repeat(4,1fr)}
+  .col{min-width:0; text-align:center; padding:0 2px}
 
-  <!-- iOS meta tags & icons -->
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="udon_ruler">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  /* 横ダイヤル */
+  .gram .head{display:flex; justify-content:center; align-items:baseline; gap:10px}
+  .gram .val{margin-top:0}
+  .gram .note{height:auto; line-height:1}
+  .gram .wheel{margin:6px 8px 0}
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+  /* ダイヤル本体 */
+  .wheel{
+    position:relative; overflow:hidden; border-radius:10px;
+    background:color-mix(in srgb,var(--accent) 8%,transparent);
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+  }
+  .wheel.v{height:var(--wheel-h)}
+  .wheel.h{height:72px}
+  .wheel:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+  .band{
+    position:absolute; z-index:0; pointer-events:none; border-radius:9px;
+    background:color-mix(in srgb,var(--accent) 15%,transparent);
+  }
+  .v .band{left:3px; right:3px; top:calc(50% - var(--size)/2); height:var(--size)}
+  .h .band{top:3px; bottom:3px; left:calc(50% - var(--size)/2); width:var(--size)}
 
-  <title>udon_ruler</title>
-  <link rel="manifest" href="manifest.json">
+  .scroller{
+    position:relative; z-index:1; height:100%;
+    overscroll-behavior:contain; scrollbar-width:none; -webkit-overflow-scrolling:touch;
+  }
+  .scroller::-webkit-scrollbar{display:none}
+  .v .scroller{overflow-y:scroll; scroll-snap-type:y mandatory}
+  .h .scroller{display:flex; overflow-x:scroll; overflow-y:hidden; scroll-snap-type:x mandatory}
+  .v .spacer{height:calc((var(--wheel-h) - var(--size))/2)}
+  .h .spacer{flex:0 0 calc(50% - var(--size)/2)}
+
+  .cell{display:flex; align-items:center; justify-content:center; scroll-snap-align:center; font-size:20px; font-variant-numeric:tabular-nums}
+  .v .cell{height:var(--size)}
+  .h .cell{flex:0 0 var(--size); height:100%}
+  /* 見た目の変形は中のspanにだけかける（スナップ位置がずれないように） */
+  .t{display:block; opacity:0; white-space:nowrap}
+</style>
 </head>
 <body>
-  <script src="flutter_bootstrap.js" async></script>
+<main>
+  <h1>うどん計算尺</h1>
+
+  <section class="card result">
+    <div class="label">仕込み量</div>
+    <div class="num"><span id="batch">0.00</span><span class="unit">バッチ</span></div>
+  </section>
+
+  <section class="card dials">
+    <div class="col blue"   id="col-ball"><div class="title">玉数</div><div class="val" id="v-ball"></div><div class="note" id="n-ball"></div><div id="w-ball"></div></div>
+    <div class="col green"  id="col-a"><div class="title">シート kg</div><div class="val" id="v-a"></div><div class="note" id="n-a"></div><div id="w-a"></div></div>
+    <div class="col green"  id="col-b"><div class="title">シート 枚</div><div class="val" id="v-b"></div><div class="note" id="n-b"></div><div id="w-b"></div></div>
+    <div class="col orange" id="col-cr"><div class="title">Cr. kg</div><div class="val" id="v-cr"></div><div class="note" id="n-cr"></div><div id="w-cr"></div></div>
+  </section>
+
+  <section class="card gram green" id="col-c">
+    <div class="head"><span class="title">シート g/枚</span><span class="val" id="v-c"></span><span class="note" id="n-c"></span></div>
+    <div id="w-c"></div>
+  </section>
+</main>
+
+<script>
+(() => {
+'use strict';
+
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const STEP = Math.PI / 9;   // 隣の項目との角度(20°)
+const MAXA = 1.4;           // これ以上傾いた項目は隠す(ラジアン)
+const RANGE = 4;            // 中央から前後何項目まで見た目を更新するか
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const round1 = v => Math.round(v * 10) / 10;
+
+// ==========================================
+// ダイヤル（スクロールスナップ + 円筒風の見た目）
+// ==========================================
+class Wheel {
+  constructor(host, { vertical, count, size, format, label, onUser }) {
+    this.host = host; this.vertical = vertical; this.size = size; this.count = count; this.onUser = onUser;
+    this.user = false;      // ユーザーが操作中か（プログラムによる移動と区別する）
+    this.touching = false;
+    this.idleTimer = 0; this.raf = 0; this.lastIdx = 0; this.range = [0, -1];
+
+    host.classList.add('wheel', vertical ? 'v' : 'h');
+    host.style.setProperty('--size', size + 'px');
+    host.tabIndex = 0;
+    host.setAttribute('role', 'slider');
+    host.setAttribute('aria-label', label);
+    host.setAttribute('aria-orientation', vertical ? 'vertical' : 'horizontal');
+    host.setAttribute('aria-valuemin', '0');
+    host.setAttribute('aria-valuemax', String(count - 1));
+
+    const band = document.createElement('div'); band.className = 'band';
+    const sc = document.createElement('div'); sc.className = 'scroller';
+    const spacer = () => { const s = document.createElement('div'); s.className = 'spacer'; return s; };
+    sc.append(spacer());
+    this.spans = [];
+    for (let i = 0; i < count; i++) {
+      const cell = document.createElement('div'); cell.className = 'cell';
+      const t = document.createElement('span'); t.className = 't'; t.textContent = format(i);
+      cell.append(t); sc.append(cell); this.spans.push(t);
+    }
+    sc.append(spacer());
+    host.append(band, sc);
+    this.sc = sc;
+
+    sc.addEventListener('scroll', () => this.onScroll(), { passive: true });
+    sc.addEventListener('touchstart', () => { this.touching = true; this.markUser(); }, { passive: true });
+    const end = () => { this.touching = false; this.armIdle(); };
+    sc.addEventListener('touchend', end, { passive: true });
+    sc.addEventListener('touchcancel', end, { passive: true });
+    sc.addEventListener('wheel', () => this.markUser(), { passive: true });
+    host.addEventListener('keydown', e => {
+      const k = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1, PageDown: 5, PageUp: -5 }[e.key];
+      if (k === undefined) return;
+      e.preventDefault();
+      this.markUser();
+      this.setIndex(this.index + k, true);
+    });
+  }
+
+  get pos() { return (this.vertical ? this.sc.scrollTop : this.sc.scrollLeft) / this.size; }
+  get index() { return clamp(Math.round(this.pos), 0, this.count - 1); }
+
+  markUser() { this.user = true; this.armIdle(); }
+  armIdle() {
+    clearTimeout(this.idleTimer);
+    this.idleTimer = setTimeout(() => { if (!this.touching) this.user = false; }, 180);
+  }
+
+  onScroll() {
+    if (!this.raf) this.raf = requestAnimationFrame(() => { this.raf = 0; this.render(); });
+    const i = this.index;
+    if (this.user) {
+      this.armIdle();
+      if (i !== this.lastIdx) { this.lastIdx = i; this.onUser(i); }
+    } else {
+      this.lastIdx = i;
+    }
+  }
+
+  /** プログラムから動かす（ユーザー操作としては扱わない） */
+  setIndex(i, animate) {
+    const v = clamp(i, 0, this.count - 1) * this.size;
+    if (animate && !reduceMotion) {
+      this.sc.scrollTo(this.vertical ? { top: v, behavior: 'smooth' } : { left: v, behavior: 'smooth' });
+    } else {
+      if (this.vertical) this.sc.scrollTop = v; else this.sc.scrollLeft = v;
+      this.lastIdx = this.index;
+      this.render();
+    }
+  }
+
+  /** 中央からの距離に応じて、傾き・縮み・濃さを付ける */
+  render() {
+    const pos = this.pos, R = this.size / STEP;
+    const lo = Math.max(0, Math.floor(pos) - RANGE), hi = Math.min(this.count - 1, Math.ceil(pos) + RANGE);
+    for (let i = this.range[0]; i <= this.range[1]; i++) {
+      if (i < lo || i > hi) { const s = this.spans[i].style; s.opacity = ''; s.transform = ''; }
+    }
+    for (let i = lo; i <= hi; i++) {
+      const s = this.spans[i].style, d = i - pos, th = d * STEP;
+      if (Math.abs(th) >= MAXA) { s.opacity = '0'; continue; }
+      const cos = Math.cos(th), shift = R * Math.sin(th) - d * this.size;
+      s.transform = this.vertical ? `translateY(${shift}px) scaleY(${cos})` : `translateX(${shift}px) scaleX(${cos})`;
+      s.opacity = Math.pow(cos, 1.3).toFixed(3);
+      s.color = `color-mix(in srgb, var(--label) ${Math.round(Math.max(0, 1 - Math.abs(d)) * 100)}%, var(--muted))`;
+    }
+    this.range = [lo, hi];
+  }
+}
+
+// ==========================================
+// 状態と計算
+// ==========================================
+const KEY = 'udon-ruler-v2';
+// a = シート(kg)、b = シート(枚)、c = シート(g/枚)。A = B × C / 1000
+function load() {
+  const d = { ball: 200, cr: 5, a: 10, b: 0, c: 165, recent: ['a', 'c'] };
+  try {
+    const j = JSON.parse(localStorage.getItem(KEY));
+    if (j && ['ball', 'cr', 'a', 'b'].every(k => Number.isFinite(j[k]))
+          && (j.c === null || Number.isFinite(j.c))
+          && Array.isArray(j.recent) && j.recent.length === 2 && j.recent[0] !== j.recent[1]
+          && j.recent.every(k => ['a', 'b', 'c'].includes(k))) return j;
+  } catch (e) { /* 保存データが壊れていたら初期値 */ }
+  return d;
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* 保存できなくても動作は続ける */ } }
+
+let S;  // { ball, cr, a, b, c, recent: [最新, その前] }
+
+/** 最後に動かした2つ以外のダイヤル＝計算で求めるダイヤル */
+const derivedKey = () => ['a', 'b', 'c'].find(k => !S.recent.includes(k));
+
+function touch(k) {
+  S.recent = [k, ...S.recent.filter(x => x !== k)].slice(0, 2);
+}
+
+function derive() {
+  const c = S.c ?? 165;
+  switch (derivedKey()) {
+    case 'a': S.a = round1(S.b * c / 1000); break;
+    case 'b': S.b = round1(S.a * 1000 / c); break;
+    case 'c': S.c = S.b > 0 ? round1(S.a * 1000 / S.b) : null; break;
+  }
+}
+
+function recompute() {
+  derive();
+  // g/枚が範囲外になったら、範囲の端(160 or 170)に固定する。
+  // 代わりに、先に動かしたほうのダイヤル(kgか枚)を計算値にして、増減して合わせる。
+  // 最後に動かしたダイヤルはそのまま。
+  if (derivedKey() === 'c' && S.c !== null && (S.c < 160 || S.c > 170)) {
+    S.c = S.c < 160 ? 160 : 170;
+    S.recent = [S.recent[0], 'c'];
+    derive();
+  }
+}
+
+// 値 → いちばん近い目盛り
+function indexFor(k) {
+  switch (k) {
+    case 'ball': return clamp(Math.round((S.ball - 100) / 2), 0, 100);
+    case 'a':    return clamp(Math.round(S.a * 5), 0, 70);
+    case 'b':    return clamp(Math.round(S.b), 0, 88);
+    case 'cr':   return clamp(Math.round(S.cr * 5), 0, 70);
+    case 'c':    return clamp(Math.round((S.c ?? 165) - 160), 0, 10);
+  }
+}
+
+// ==========================================
+// 画面
+// ==========================================
+const $ = id => document.getElementById(id);
+const kg = i => (i * 2 / 10).toFixed(1);
+
+const W = {
+  ball: new Wheel($('w-ball'), { vertical: true,  count: 101, size: 34, label: '玉数',      format: i => String(100 + 2 * i), onUser: i => onUser('ball', i) }),
+  a:    new Wheel($('w-a'),    { vertical: true,  count: 71,  size: 34, label: 'シート kg', format: kg,                       onUser: i => onUser('a', i) }),
+  b:    new Wheel($('w-b'),    { vertical: true,  count: 89,  size: 34, label: 'シート 枚', format: i => String(i),           onUser: i => onUser('b', i) }),
+  cr:   new Wheel($('w-cr'),   { vertical: true,  count: 71,  size: 34, label: 'Cr. kg',    format: kg,                       onUser: i => onUser('cr', i) }),
+  c:    new Wheel($('w-c'),    { vertical: false, count: 11,  size: 56, label: 'シート g/枚', format: i => String(160 + i),   onUser: i => onUser('c', i) }),
+};
+
+const RANGES = { a: [0, 14], b: [0, 88], c: [160, 170] };
+const fmt = (v, decimal) => v === null ? '—' : v.toFixed(decimal ? 1 : 0);
+
+function show(k, text, derived) {
+  const out = !!derived && S[k] !== null && (S[k] < RANGES[k][0] || S[k] > RANGES[k][1]);
+  $('v-' + k).textContent = text;
+  $('n-' + k).textContent = derived ? (out ? '範囲外' : '計算値') : '';
+  $('col-' + k).classList.toggle('warn', out);
+  W[k].host.setAttribute('aria-valuetext', text);
+  W[k].host.setAttribute('aria-valuenow', String(indexFor(k)));
+}
+
+function render() {
+  const d = derivedKey();
+  $('batch').textContent = (S.ball / 100 + S.a / 14 + S.cr / 14).toFixed(2);   // 仕込み量
+  show('ball', String(S.ball));
+  show('a',  S.a.toFixed(1), d === 'a');
+  show('b',  fmt(S.b, d === 'b'), d === 'b');
+  show('cr', S.cr.toFixed(1));
+  show('c',  fmt(S.c, d === 'c'), d === 'c');
+}
+
+function onUser(k, i) {
+  switch (k) {
+    case 'ball': S.ball = 100 + 2 * i; break;
+    case 'cr':   S.cr = i * 2 / 10; break;
+    case 'a':    S.a = i * 2 / 10; touch('a'); break;
+    case 'b':    S.b = i; touch('b'); break;
+    case 'c':    S.c = 160 + i; touch('c'); break;
+  }
+  recompute();
+  render();
+  save();
+  // 操作中のダイヤル以外を、値に近い目盛りへ動かす（計算で変わったダイヤルが追従する）
+  for (const key of ['a', 'b', 'c']) if (key !== k) W[key].setIndex(indexFor(key), true);
+}
+
+S = load();
+recompute();
+render();
+for (const k of Object.keys(W)) W[k].setIndex(indexFor(k), false);
+})();
+</script>
 </body>
 </html>
