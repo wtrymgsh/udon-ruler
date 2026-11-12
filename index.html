@@ -126,7 +126,7 @@
   .adj-head{font-size:12px; font-weight:600; color:var(--sub); padding-bottom:6px}
   .adj-head span:nth-child(2){text-align:center}
   .adj-head span:nth-child(3){text-align:right}
-  .adj-row{height:72px; display:flex; align-items:center; gap:8px; border-top:1px solid #ececf0}
+  .adj-row{height:var(--row-h,72px); display:flex; align-items:center; gap:8px; border-top:1px solid #ececf0}
   .adj-row:first-child{border-top:0}
   .adj-name{flex:0 0 4.4em; white-space:nowrap; font-size:15px; font-weight:700}
   .adj-qty{flex:1; min-width:0; width:100%; font:inherit; font-size:18px; font-variant-numeric:tabular-nums; text-align:right;
@@ -141,6 +141,19 @@
   .stat b{font-size:24px; font-variant-numeric:tabular-nums}
   h2.sub{font-size:18px; margin:22px 4px 10px; text-align:center}
   .t-in{flex:0 0 120px; width:120px}
+  /* らーめんページは上下を詰める */
+  #page3{--row-h:44px}
+  #page3 main{padding-top:max(8px,env(safe-area-inset-top))}
+  #page3 h1{font-size:19px; margin:2px 0 8px}
+  #page3 h2.sub{font-size:16px; margin:12px 4px 6px}
+  #page3 .card{padding-top:8px; padding-bottom:8px}
+  #page3 .stats{margin-top:8px; padding-top:0; padding-bottom:0}
+  #page3 .stat{padding:7px 0}
+  #page3 .stat span{font-size:13px}
+  #page3 .stat b{font-size:20px}
+  #page3 .adj-qty{font-size:16px; padding:5px 6px}
+  #page3 .adj-out .adj-row{font-size:18px}
+  #page3 .adj-name{font-size:14px}
   .stat small{font-size:13px; font-weight:600; color:var(--sub); margin-left:2px}
 </style>
 </head>
@@ -474,7 +487,7 @@ const PCT_COUNT = 21;                       // 10, 15, ... 110
 const pctAt = i => 10 + 5 * i;
 const fmtG = v => (Math.round(v * 10) / 10).toLocaleString('ja-JP', { maximumFractionDigits: 1 });
 
-function adjustPage(pfx, key, items, stats, onRender) {
+function adjustPage(pfx, key, items, stats, onRender, rowH = 72, cell = 36) {
   const P = { qty: {}, pct: 100 };
   let j = null;
   try { j = JSON.parse(localStorage.getItem(key)); } catch (e) { /* 初期値で続ける */ }
@@ -519,9 +532,9 @@ function adjustPage(pfx, key, items, stats, onRender) {
     if (onRender) onRender(v);
   }
   const host = $(pfx + '-wheel');
-  host.style.setProperty('--wheel-h', items.length * ROW_H + 'px');
+  host.style.setProperty('--wheel-h', items.length * rowH + 'px');
   const wheel = new Wheel(host, {
-    vertical: true, count: PCT_COUNT, size: 36, label: '調整率 (%)',
+    vertical: true, count: PCT_COUNT, size: cell, label: '調整率 (%)',
     format: i => String(pctAt(i)),
     onUser: i => { P.pct = pctAt(i); render(); save(); },
   });
@@ -562,7 +575,7 @@ adjustPage('r', 'udon-ruler-ramen', [
   { label: '仕込み水量 (%)',          dec: 1, f: v => (v.water + v.salt + v.kansui) / (v.apex + v.tapioca) },
   { label: '仕込み水の塩分濃度 (%)',   dec: 2, f: v => v.salt / (v.water + v.salt + v.kansui) },
   { label: '仕込み水のかん水濃度 (%)', dec: 2, f: v => v.kansui / (v.water + v.salt + v.kansui) },
-], v => { lastRamen = v; renderTahsui(); });
+], v => { lastRamen = v; renderTahsui(); }, 44, 30);
 
 function renderTahsui() {
   const out = $('t-out');
